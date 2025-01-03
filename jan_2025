@@ -1,0 +1,280 @@
+//
+// Created by luca miniati on 1/2/25.
+//
+#include <iostream>
+#include <vector>
+#include <numeric>
+using namespace std;
+
+int N = 9, M = 10, all_digits = (1 << 10) - 1, max_g = 1;
+vector grid(N, vector(N, -1)), ans(N, vector(N, -1)), possible(N, vector(N, all_digits));
+
+void print() {
+    int block_size = 3;
+
+    cout << "╔";
+    for (int col = 0; col < N; ++col) {
+        cout << "═══";
+        if ((col + 1) % block_size == 0 && col != N - 1)
+            cout << "╦";
+        else if (col == N - 1)
+            cout << "╗";
+        else
+            cout << "╤";
+    }
+    cout << "\n";
+
+    for (int row = 0; row < N; ++row) {
+        cout << "║";
+        for (int col = 0; col < N; ++col) {
+            if (grid[row][col] == -1)
+                cout << "   ";
+            else
+                cout << " " << grid[row][col] << " ";
+
+            if ((col + 1) % block_size == 0 && col != N - 1)
+                cout << "║";
+            else if (col != N - 1)
+                cout << "│";
+        }
+        cout << "║\n";
+
+        if ((row + 1) % block_size == 0 && row != N - 1) {
+            cout << "╠";
+            for (int col = 0; col < N; ++col) {
+                cout << "═══";
+                if ((col + 1) % block_size == 0 && col != N - 1)
+                    cout << "╬";
+                else if (col == N - 1)
+                    cout << "╣";
+                else
+                    cout << "╪";
+            }
+            cout << "\n";
+        } else if (row != N - 1) {
+            cout << "╟";
+            for (int col = 0; col < N; ++col) {
+                cout << "───";
+                if (((col + 1) % block_size == 0 && col != N - 1) || col == N - 1)
+                    cout << "╢";
+                else
+                    cout << "┼";
+            }
+            cout << "\n";
+        }
+    }
+
+    cout << "╚";
+    for (int col = 0; col < N; ++col) {
+        cout << "═══";
+        if ((col + 1) % block_size == 0 && col != N - 1)
+            cout << "╩";
+        else if (col == N - 1)
+            cout << "╝";
+        else
+            cout << "╧";
+    }
+    cout << "\n";
+}
+
+void update_possible(int i, int j, int n) {
+    // zero out the whole column on the nth bit
+    for (int i1 = 0; i1 < N; ++i1)
+        // if the bit is set, clear it
+        if (1 << n & possible[i1][j])
+            possible[i1][j] ^= 1 << n;
+    // zero out the whole row on the nth bit
+    for (int j1 = 0; j1 < N; ++j1)
+        // if the bit is set, clear it
+            if (1 << n & possible[i][j1])
+                possible[i][j1] ^= 1 << n;
+    // zero out the whole 3x3 box on the nth bit
+    int i1 = i / 3, j1 = j / 3;
+    for (int i2 = 0; i2 < 3; ++i2)
+        for (int j2 = 0; j2 < 3; ++j2)
+            if (1 << n & possible[3 * i1 + i2][3 * j1 + j2])
+                possible[3 * i1 + i2][3 * j1 + j2] ^= 1 << n;
+}
+
+void init_possible() {
+    grid[0][7] = 2;
+    update_possible(0, 7, 2);
+
+    grid[1][4] = 2;
+    update_possible(1, 4, 2);
+
+    grid[1][8] = 5;
+    update_possible(1, 8, 5);
+
+    grid[2][1] = 2;
+    update_possible(2, 1, 2);
+
+    grid[3][2] = 2;
+    update_possible(3, 2, 2);
+
+    grid[5][3] = 2;
+    update_possible(5, 3, 2);
+
+    grid[6][4] = 0;
+    update_possible(6, 4, 0);
+
+    grid[7][5] = 2;
+    update_possible(7, 5, 2);
+
+    grid[8][6] = 5;
+    update_possible(8, 6, 5);
+}
+
+/**
+ * Sometimes, a row, column, or block with only have 1 cell that could possibly be the
+ * number, say, n. This should set that cell to n, and should call update_possible(i, j, n).
+ */
+void process_of_elimination() {
+    bool updated = true;
+    while (updated) {
+        updated = false;
+
+        // go over each rows
+        for (int i = 0; i < N; ++i) {
+            int mask = 0;
+            for (int j = 0; j < N; ++j)
+                if (grid[i][j] == -1)
+                    mask |= possible[i][j];
+
+            // for each digit that appears in the mask
+            // we count the number and store it
+            for (int b = 0; b < M; ++b) {
+                if (!(mask & (1 << b))) continue;
+
+                int cnt = 0, last_j = -1;
+                for (int j = 0; j < N; ++j) {
+                    if (grid[i][j] == -1 && (possible[i][j] & (1 << b))) {
+                        cnt++;
+                        last_j = j;
+                    }
+                }
+
+                // place it if it only appears once
+                if (cnt == 1) {
+                    grid[i][last_j] = b;
+                    update_possible(i, last_j, b);
+                    updated = true;
+                }
+            }
+        }
+
+        //  go over each col
+        for (int j = 0; j < N; ++j) {
+            int mask = 0;
+            for (int i = 0; i < N; ++i)
+                if (grid[i][j] == -1)
+                    mask |= possible[i][j];
+
+            for (int d = 0; d < M; ++d) {
+                if (!(mask & (1 << d))) continue;
+
+                int cnt = 0, last_i = -1;
+                for (int i = 0; i < N; ++i) {
+                    if (grid[i][j] == -1 && (possible[i][j] & (1 << d))) {
+                        cnt++;
+                        last_i = i;
+                    }
+                }
+
+                if (cnt == 1) {
+                    grid[last_i][j] = d;
+                    update_possible(last_i, j, d);
+                    updated = true;
+                }
+            }
+        }
+
+        // go over each box
+        for (int box = 0; box < N; ++box) {
+            int box_i = (box / 3) * 3, box_j = (box % 3) * 3;
+            int mask = 0;
+
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 3; ++j)
+                    if (grid[box_i + i][box_j + j] == -1)
+                        mask |= possible[box_i + i][box_j + j];
+
+            for (int d = 0; d < M; ++d) {
+                if (!(mask & (1 << d))) continue;
+
+                int cnt = 0, last_i = -1, last_j = -1;
+                for (int i = 0; i < 3; ++i) {
+                    for (int j = 0; j < 3; ++j) {
+                        if (grid[box_i + i][box_j + j] == -1 &&
+                            (possible[box_i + i][box_j + j] & (1 << d))) {
+                            cnt++;
+                            last_i = box_i + i;
+                            last_j = box_j + j;
+                        }
+                    }
+                }
+
+                if (cnt == 1) {
+                    grid[last_i][last_j] = d;
+                    update_possible(last_i, last_j, d);
+                    updated = true;
+                }
+            }
+        }
+    }
+}
+
+void update_ans() {
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < N; ++j)
+            ans[i][j] = grid[i][j];
+}
+
+int get_row(int i) {
+    int n = 0;
+    int base = 1;
+    for (int j = N - 1; j >= 0; --j) {
+        if (grid[i][j] == -1)
+            return -1;
+        n += base * grid[i][j];
+        base *= 10;
+    }
+    return n;
+}
+
+vector<vector<int>> copy_grid(vector<vector<int>>& v) {
+    vector res(N, vector<int>(N));
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < N; ++j)
+            res[i][j] = v[i][j];
+    return res;
+}
+
+bool should_prune() {
+    // if we already have gcd < max_g
+    int g = 1;
+    for (int i = 0; i < N; ++i) {
+        int n = get_row(i);
+        if (n != -1)
+            g = gcd(g, n);
+        if (g < max_g)
+            return true;
+    }
+
+    // if we have contradiction
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < N; ++j)
+            // this means we haven't found a number for (i, j), but there aren't any possible
+            // choices
+            if (grid[i][i] == -1 && possible[i][j] == 0)
+                return true;
+
+    return false;
+}
+
+int main() {
+    init_possible();
+    print();
+
+    cout << possible[1][4] << endl;
+}
